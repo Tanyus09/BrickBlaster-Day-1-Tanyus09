@@ -88,7 +88,7 @@ export default function App() {
       paddleX = canvas.width / 2 - paddleW / 2;
       bx = canvas.width / 2;
       by = canvas.height * 0.6;
-      const spd = 2.5 + (level - 1) * 0.5;
+      const spd = 3.8 + (level - 1) * 0.5;
       bvx = spd * (Math.random() > 0.5 ? 1 : -1);
       bvy = -spd;
       gameOver = false;
@@ -307,7 +307,7 @@ export default function App() {
         if (lives <= 0) { gameOver = true; }
         else {
           bx = canvas.width / 2; by = canvas.height * 0.6;
-          const spd = 2.5 + (level - 1) * 0.5;
+          const spd = 3.8 + (level - 1) * 0.5;
           bvx = spd * (Math.random() > 0.5 ? 1 : -1); bvy = -spd;
           started = false;
         }
