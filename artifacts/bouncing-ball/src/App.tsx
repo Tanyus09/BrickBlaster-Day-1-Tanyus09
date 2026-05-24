@@ -32,8 +32,11 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onGameOverRef = useRef<((score: number) => void) | null>(null);
   const resumeRef = useRef<(() => void) | null>(null);
+  const stopMusicRef = useRef<(() => void) | null>(null);
+  const setMusicMutedRef = useRef<((m: boolean) => void) | null>(null);
 
   const [screen, setScreen] = useState<"game" | "enter-name" | "leaderboard">("game");
+  const [musicMuted, setMusicMuted] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [nameInput, setNameInput] = useState("");
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>(loadLeaderboard);
@@ -75,6 +78,83 @@ export default function App() {
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
       osc.start(); osc.stop(audioCtx.currentTime + dur);
     }
+
+    // --- Background music ---
+    const BPM = 152;
+    const S = 60 / BPM / 4; // sixteenth note duration
+
+    // Melody (square): 32 sixteenth notes
+    const MEL = [
+      523, 659, 784, 659,  523, 440, 349, 440,
+      523, 659, 784, 880,  784, 659, 523, 0,
+      392, 523, 659, 523,  440, 349, 293, 349,
+      392, 523, 659, 784,  659, 523, 392, 0,
+    ];
+    // Bass (triangle): one note per 2 sixteenth notes (16 total)
+    const BASS = [
+      131, 131, 175, 175,  220, 220, 175, 175,
+      131, 131, 147, 147,  165, 165, 131, 131,
+    ];
+
+    let musicMutedFlag = false;
+    let musicSchedulerTimer: ReturnType<typeof setTimeout> | null = null;
+    let musicBeat = 0;
+    let musicNextTime = 0;
+
+    function scheduleMusNote(freq: number, time: number, dur: number, type: OscillatorType, vol: number) {
+      if (freq === 0 || musicMutedFlag) return;
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.connect(g); g.connect(audioCtx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, time);
+      g.gain.setValueAtTime(vol, time);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur * 0.85);
+      osc.start(time); osc.stop(time + dur);
+    }
+
+    function musicScheduler() {
+      while (musicNextTime < audioCtx.currentTime + 0.25) {
+        const idx = musicBeat % MEL.length;
+        scheduleMusNote(MEL[idx], musicNextTime, S * 0.82, "square", 0.045);
+        if (musicBeat % 2 === 0) {
+          const bi = (musicBeat / 2) % BASS.length;
+          scheduleMusNote(BASS[bi], musicNextTime, S * 1.9, "triangle", 0.055);
+        }
+        // Subtle hi-hat on every beat
+        if (musicBeat % 4 === 0 && !musicMutedFlag) {
+          const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.04, audioCtx.sampleRate);
+          const data = buf.getChannelData(0);
+          for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+          const src = audioCtx.createBufferSource();
+          const hg = audioCtx.createGain();
+          const filt = audioCtx.createBiquadFilter();
+          filt.type = "highpass"; filt.frequency.value = 8000;
+          src.buffer = buf;
+          src.connect(filt); filt.connect(hg); hg.connect(audioCtx.destination);
+          hg.gain.setValueAtTime(0.025, musicNextTime);
+          hg.gain.exponentialRampToValueAtTime(0.0001, musicNextTime + 0.04);
+          src.start(musicNextTime);
+        }
+        musicNextTime += S;
+        musicBeat++;
+      }
+      musicSchedulerTimer = setTimeout(musicScheduler, 60);
+    }
+
+    function startMusic() {
+      if (musicSchedulerTimer) return;
+      musicBeat = 0;
+      musicNextTime = audioCtx.currentTime + 0.05;
+      musicScheduler();
+    }
+
+    function stopMusic() {
+      if (musicSchedulerTimer) { clearTimeout(musicSchedulerTimer); musicSchedulerTimer = null; }
+    }
+
+    stopMusicRef.current = stopMusic;
+    setMusicMutedRef.current = (m: boolean) => { musicMutedFlag = m; };
 
     let animId: number;
     const keys: Record<string, boolean> = {};
@@ -172,7 +252,7 @@ export default function App() {
       keys[e.key] = true;
       if (["ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
       if (e.key === " " || e.key === "Enter") {
-        if (showTitle) { showTitle = false; return; }
+        if (showTitle) { showTitle = false; startMusic(); return; }
         if (!started && !gameOver && !won && !waitingForRestart) started = true;
         else if (won) reset(level + 1);
       }
@@ -194,7 +274,7 @@ export default function App() {
       const rect = canvas.getBoundingClientRect();
       const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
       paddleX = Math.max(0, Math.min(canvas.width - paddleW, tx - paddleW / 2));
-      if (showTitle) { showTitle = false; return; }
+      if (showTitle) { showTitle = false; startMusic(); return; }
       if (!started && !gameOver && !won && !waitingForRestart) started = true;
       else if (won) reset(level + 1);
     }
@@ -537,6 +617,7 @@ export default function App() {
 
     function triggerGameOver() {
       gameOver = true; waitingForRestart = true;
+      stopMusic();
       if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
       setTimeout(() => onGameOverRef.current?.(score), 600);
     }
@@ -670,6 +751,7 @@ export default function App() {
 
     return () => {
       cancelAnimationFrame(animId);
+      stopMusic();
       audioCtx.close();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
@@ -681,6 +763,27 @@ export default function App() {
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}>
       <canvas ref={canvasRef} style={{ display: "block" }} />
+
+      {/* Mute button */}
+      {screen === "game" && (
+        <button
+          onClick={() => {
+            const next = !musicMuted;
+            setMusicMuted(next);
+            setMusicMutedRef.current?.(next);
+          }}
+          style={{
+            position: "absolute", bottom: 16, right: 16,
+            background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 10, padding: "8px 14px", cursor: "pointer",
+            color: "rgba(255,255,255,0.7)", fontSize: 20, lineHeight: 1,
+            backdropFilter: "blur(4px)",
+          }}
+          title={musicMuted ? "Unmute music" : "Mute music"}
+        >
+          {musicMuted ? "🔇" : "🔊"}
+        </button>
+      )}
 
       {screen === "enter-name" && (
         <div style={{
