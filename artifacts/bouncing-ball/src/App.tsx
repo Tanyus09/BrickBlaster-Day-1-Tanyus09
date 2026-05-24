@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const RADIUS = 12;
 const PADDLE_H = 12;
@@ -18,9 +18,47 @@ const BRICK_COLORS = [
 type Brick = { x: number; y: number; w: number; alive: boolean; color: string; hits: number; maxHits: number };
 type Particle = { x: number; y: number; vx: number; vy: number; life: number; color: string; r: number };
 type PowerUp = { x: number; y: number; vy: number; type: "wide" | "slow" | "life"; active: boolean };
+type LeaderEntry = { name: string; score: number };
+
+function loadLeaderboard(): LeaderEntry[] {
+  try { return JSON.parse(localStorage.getItem("bb_leaderboard") ?? "[]"); }
+  catch { return []; }
+}
+function saveLeaderboard(entries: LeaderEntry[]) {
+  localStorage.setItem("bb_leaderboard", JSON.stringify(entries));
+}
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onGameOverRef = useRef<((score: number) => void) | null>(null);
+  const resumeRef = useRef<(() => void) | null>(null);
+
+  const [screen, setScreen] = useState<"game" | "enter-name" | "leaderboard">("game");
+  const [finalScore, setFinalScore] = useState(0);
+  const [nameInput, setNameInput] = useState("");
+  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>(loadLeaderboard);
+
+  onGameOverRef.current = (score: number) => {
+    setFinalScore(score);
+    setScreen("enter-name");
+  };
+
+  function submitName() {
+    const name = nameInput.trim() || "Anonymous";
+    const entry: LeaderEntry = { name, score: finalScore };
+    const updated = [...leaderboard, entry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+    saveLeaderboard(updated);
+    setLeaderboard(updated);
+    setNameInput("");
+    setScreen("leaderboard");
+  }
+
+  function playAgain() {
+    setScreen("game");
+    resumeRef.current?.();
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,7 +83,6 @@ export default function App() {
     const keys: Record<string, boolean> = {};
     let highScore = parseInt(localStorage.getItem("bb_highscore") ?? "0", 10);
 
-    // --- Game state ---
     let bx: number, by: number, bvx: number, bvy: number;
     let paddleX: number, paddleW: number;
     let score: number, lives: number, level: number;
@@ -59,6 +96,13 @@ export default function App() {
     let comboTimer = 0;
     let comboFlash = 0;
     let timeLeft = 0;
+    let waitingForRestart = false;
+
+    resumeRef.current = () => {
+      waitingForRestart = false;
+      reset(1);
+      if (!animId) draw();
+    };
 
     function makeBricks() {
       bricks = [];
@@ -102,6 +146,7 @@ export default function App() {
       comboTimer = 0;
       comboFlash = 0;
       timeLeft = 90 * 60;
+      waitingForRestart = false;
       makeBricks();
     }
 
@@ -117,8 +162,7 @@ export default function App() {
       keys[e.key] = true;
       if (["ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
       if (e.key === " " || e.key === "Enter") {
-        if (!started && !gameOver && !won) started = true;
-        else if (gameOver) reset(1);
+        if (!started && !gameOver && !won && !waitingForRestart) started = true;
         else if (won) reset(level + 1);
       }
     }
@@ -135,38 +179,30 @@ export default function App() {
     }
 
     function drawHUD() {
-      // Score
       ctx.textAlign = "left";
       ctx.font = "bold 20px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.fillText(`Score: ${score}`, 20, 30);
 
-      // High score
       if (highScore > 0) {
         ctx.font = "14px system-ui, sans-serif";
         ctx.fillStyle = "rgba(255,215,0,0.7)";
         ctx.fillText(`Best: ${highScore}`, 20, 52);
       }
 
-      // Level
       ctx.textAlign = "center";
       ctx.font = "bold 20px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.fillText(`Level ${level}`, canvas.width / 2, 30);
 
-      // Timer
       const secs = Math.ceil(timeLeft / 60);
       const isLow = secs <= 15;
       ctx.font = `bold ${isLow ? "26px" : "20px"} system-ui, sans-serif`;
       ctx.fillStyle = isLow ? (secs <= 8 ? "#ff3333" : "#ffaa00") : "rgba(255,255,255,0.75)";
-      if (isLow && secs <= 8) {
-        ctx.shadowColor = "#ff3333";
-        ctx.shadowBlur = 14;
-      }
+      if (isLow && secs <= 8) { ctx.shadowColor = "#ff3333"; ctx.shadowBlur = 14; }
       ctx.fillText(`⏱ ${secs}s`, canvas.width / 2, 56);
       ctx.shadowBlur = 0;
 
-      // Lives as hearts
       ctx.textAlign = "right";
       ctx.font = "20px system-ui, sans-serif";
       let hearts = "";
@@ -174,7 +210,6 @@ export default function App() {
       ctx.fillStyle = "#ff4466";
       ctx.fillText(hearts.trim(), canvas.width - 20, 30);
 
-      // Combo display
       if (combo >= 2 && comboFlash > 0) {
         const alpha = comboFlash / 40;
         const scale = 1 + (1 - alpha) * 0.3;
@@ -196,7 +231,6 @@ export default function App() {
         ctx.fillText(`${combo}x combo`, canvas.width / 2, canvas.height / 2 - 40);
       }
 
-      // Power-up timers
       let barY = canvas.height - 60;
       if (widePaddleTimer > 0) {
         ctx.textAlign = "left";
@@ -213,56 +247,62 @@ export default function App() {
       }
     }
 
-    function drawOverlay(title: string, sub: string, hint: string) {
+    function drawWinOverlay() {
       ctx.fillStyle = "rgba(0,0,0,0.7)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.textAlign = "center";
       ctx.font = "bold 60px system-ui, sans-serif";
-      ctx.fillStyle = title === "YOU WIN!" ? "#44ffcc" : "#ff3333";
-      ctx.shadowColor = ctx.fillStyle;
+      ctx.fillStyle = "#44ffcc";
+      ctx.shadowColor = "#44ffcc";
       ctx.shadowBlur = 30;
-      ctx.fillText(title, canvas.width / 2, canvas.height / 2 - 50);
+      ctx.fillText("YOU WIN!", canvas.width / 2, canvas.height / 2 - 50);
       ctx.shadowBlur = 0;
       ctx.font = "26px system-ui, sans-serif";
       ctx.fillStyle = "#ffffff";
-      ctx.fillText(sub, canvas.width / 2, canvas.height / 2 + 10);
+      ctx.fillText(`Score: ${score}  Level ${level}`, canvas.width / 2, canvas.height / 2 + 10);
       ctx.font = "18px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.fillText(hint, canvas.width / 2, canvas.height / 2 + 55);
+      ctx.fillText("Press Space for next level", canvas.width / 2, canvas.height / 2 + 55);
+    }
+
+    function triggerGameOver() {
+      gameOver = true;
+      waitingForRestart = true;
+      if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
+      setTimeout(() => onGameOverRef.current?.(score), 400);
     }
 
     function draw() {
       const paddleY = canvas.height - PADDLE_Y_OFFSET;
 
-      // Background
       ctx.fillStyle = "#0d0d1a";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Subtle grid
       ctx.strokeStyle = "rgba(255,255,255,0.03)";
       ctx.lineWidth = 1;
       for (let gx = 0; gx < canvas.width; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, canvas.height); ctx.stroke(); }
       for (let gy = 0; gy < canvas.height; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(canvas.width, gy); ctx.stroke(); }
 
-      if (gameOver) { drawHUD(); drawOverlay("GAME OVER", `Score: ${score}`, "Press Space to play again"); animId = requestAnimationFrame(draw); return; }
-      if (won) { drawHUD(); drawOverlay("YOU WIN!", `Score: ${score}  Level ${level}`, "Press Space for next level"); animId = requestAnimationFrame(draw); return; }
+      if (waitingForRestart) {
+        drawBricks(); drawParticles(); drawPaddle(paddleX, paddleW, paddleY); drawBall(bx, by); drawHUD();
+        animId = requestAnimationFrame(draw);
+        return;
+      }
 
-      // Power-up countdown
+      if (won) { drawHUD(); drawWinOverlay(); animId = requestAnimationFrame(draw); return; }
+
       if (widePaddleTimer > 0) { widePaddleTimer--; paddleW = 160; }
       else paddleW = 100 + (level - 1) * -5;
       if (slowTimer > 0) slowTimer--;
 
-      // Combo countdown — expires after ~1.2 seconds without a brick break
       if (comboTimer > 0) comboTimer--;
       else if (combo > 0) combo = 0;
       if (comboFlash > 0) comboFlash--;
 
-      // Timer countdown (only while ball is in play)
       if (started && timeLeft > 0) timeLeft--;
-      if (timeLeft === 0 && started) { gameOver = true; }
+      if (timeLeft === 0 && started && !gameOver) { triggerGameOver(); }
 
       if (!started) {
-        // Draw everything static then show hint
         drawBricks(); drawParticles(); drawPaddle(paddleX, paddleW, paddleY); drawBall(bx, by); drawHUD();
         ctx.textAlign = "center";
         ctx.font = "bold 22px system-ui, sans-serif";
@@ -272,21 +312,17 @@ export default function App() {
         return;
       }
 
-      // Move paddle
       if (keys["ArrowLeft"]) paddleX = Math.max(0, paddleX - PADDLE_SPEED);
       if (keys["ArrowRight"]) paddleX = Math.min(canvas.width - paddleW, paddleX + PADDLE_SPEED);
 
-      // Move ball
       const slowFactor = slowTimer > 0 ? 0.55 : 1;
       bx += bvx * slowFactor;
       by += bvy * slowFactor;
 
-      // Wall bounces
       if (bx - RADIUS <= 0) { bx = RADIUS; bvx = Math.abs(bvx); beep(300, 0.05); }
       else if (bx + RADIUS >= canvas.width) { bx = canvas.width - RADIUS; bvx = -Math.abs(bvx); beep(300, 0.05); }
       if (by - RADIUS <= 0) { by = RADIUS; bvy = Math.abs(bvy); beep(300, 0.05); }
 
-      // Paddle collision
       const phitsX = bx + RADIUS >= paddleX && bx - RADIUS <= paddleX + paddleW;
       const phitsY = by + RADIUS >= paddleY - PADDLE_H / 2 && by + RADIUS <= paddleY + PADDLE_H + 4;
       if (phitsX && phitsY && bvy > 0) {
@@ -300,11 +336,10 @@ export default function App() {
         if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
       }
 
-      // Ball lost
       if (by - RADIUS > canvas.height) {
         lives--;
         beep(120, 0.4, 0.3);
-        if (lives <= 0) { gameOver = true; }
+        if (lives <= 0) { triggerGameOver(); }
         else {
           bx = canvas.width / 2; by = canvas.height * 0.6;
           const spd = 5.0 + (level - 1) * 0.5;
@@ -314,7 +349,6 @@ export default function App() {
         animId = requestAnimationFrame(draw); return;
       }
 
-      // Brick collisions
       for (const b of bricks) {
         if (!b.alive) continue;
         const closestX = Math.max(b.x, Math.min(bx, b.x + b.w));
@@ -332,7 +366,6 @@ export default function App() {
             if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
             spawnParticles(b.x + b.w / 2, b.y + BRICK_H / 2, b.color, 12);
             beep(600 + combo * 40, 0.1, 0.15);
-            // 20% chance to drop power-up
             if (Math.random() < 0.2) {
               const types: PowerUp["type"][] = ["wide", "slow", "life"];
               powerUps.push({ x: b.x + b.w / 2, y: b.y + BRICK_H / 2, vy: 2, type: types[Math.floor(Math.random() * types.length)], active: true });
@@ -340,14 +373,12 @@ export default function App() {
           } else {
             beep(400, 0.08, 0.12);
           }
-          // Reflect off nearest axis
           if (Math.abs(dx) > Math.abs(dy)) bvx = -bvx;
           else bvy = -bvy;
           break;
         }
       }
 
-      // Power-up movement & collection
       for (const p of powerUps) {
         if (!p.active) continue;
         p.y += p.vy;
@@ -362,10 +393,8 @@ export default function App() {
         if (p.y > canvas.height) p.active = false;
       }
 
-      // Check win
       if (bricks.every(b => !b.alive)) { won = true; beep(880, 0.3); }
 
-      // Draw everything
       drawBricks();
       drawParticles();
       drawPowerUps();
@@ -467,5 +496,100 @@ export default function App() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} style={{ display: "block", background: "#0d0d1a" }} />;
+  return (
+    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}>
+      <canvas ref={canvasRef} style={{ display: "block", background: "#0d0d1a" }} />
+
+      {screen === "enter-name" && (
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center",
+          justifyContent: "center", background: "rgba(0,0,0,0.82)",
+        }}>
+          <div style={{
+            background: "#12122a", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 16, padding: "40px 48px", textAlign: "center",
+            boxShadow: "0 0 60px rgba(255,50,50,0.3)", maxWidth: 360, width: "90%",
+          }}>
+            <div style={{ fontSize: 52, marginBottom: 8 }}>💀</div>
+            <div style={{ color: "#ff4444", fontSize: 32, fontWeight: "bold", fontFamily: "system-ui", marginBottom: 4 }}>GAME OVER</div>
+            <div style={{ color: "rgba(255,255,255,0.7)", fontFamily: "system-ui", fontSize: 18, marginBottom: 28 }}>
+              Score: <span style={{ color: "#fff", fontWeight: "bold" }}>{finalScore}</span>
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: "system-ui", fontSize: 14, marginBottom: 10 }}>Enter your name for the leaderboard:</div>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submitName()}
+              maxLength={16}
+              placeholder="Your name"
+              style={{
+                width: "100%", boxSizing: "border-box", padding: "10px 14px",
+                borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.07)", color: "#fff",
+                fontFamily: "system-ui", fontSize: 16, outline: "none",
+                marginBottom: 16, textAlign: "center",
+              }}
+            />
+            <button onClick={submitName} style={{
+              width: "100%", padding: "12px", borderRadius: 8, border: "none",
+              background: "#4488ff", color: "#fff", fontFamily: "system-ui",
+              fontSize: 16, fontWeight: "bold", cursor: "pointer",
+            }}>
+              Save Score
+            </button>
+          </div>
+        </div>
+      )}
+
+      {screen === "leaderboard" && (
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center",
+          justifyContent: "center", background: "rgba(0,0,0,0.88)",
+        }}>
+          <div style={{
+            background: "#12122a", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 16, padding: "36px 48px", textAlign: "center",
+            boxShadow: "0 0 60px rgba(68,136,255,0.25)", maxWidth: 380, width: "90%",
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 4 }}>🏆</div>
+            <div style={{ color: "#ffcc00", fontSize: 26, fontWeight: "bold", fontFamily: "system-ui", marginBottom: 24 }}>Leaderboard</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "system-ui", marginBottom: 28 }}>
+              <thead>
+                <tr style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+                  <td style={{ padding: "4px 8px", textAlign: "left" }}>#</td>
+                  <td style={{ padding: "4px 8px", textAlign: "left" }}>Name</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right" }}>Score</td>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.length === 0 && (
+                  <tr><td colSpan={3} style={{ color: "rgba(255,255,255,0.3)", padding: 12, fontSize: 14 }}>No scores yet!</td></tr>
+                )}
+                {leaderboard.map((e, i) => (
+                  <tr key={i} style={{
+                    background: i % 2 === 0 ? "rgba(255,255,255,0.04)" : "transparent",
+                    color: i === 0 ? "#ffcc00" : i === 1 ? "#cccccc" : i === 2 ? "#cd7f32" : "rgba(255,255,255,0.75)",
+                  }}>
+                    <td style={{ padding: "8px 8px", fontSize: 14, fontWeight: "bold" }}>
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
+                    </td>
+                    <td style={{ padding: "8px 8px", fontSize: 16, textAlign: "left" }}>{e.name}</td>
+                    <td style={{ padding: "8px 8px", fontSize: 16, fontWeight: "bold", textAlign: "right" }}>{e.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={playAgain} style={{
+              width: "100%", padding: "12px", borderRadius: 8, border: "none",
+              background: "#44cc44", color: "#fff", fontFamily: "system-ui",
+              fontSize: 16, fontWeight: "bold", cursor: "pointer",
+            }}>
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
