@@ -15,6 +15,21 @@ export default function App() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const audioCtx = new AudioContext();
+
+    function playBeep() {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(480, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.12);
+    }
+
     let animId: number;
     let x = 0;
     let y = 0;
@@ -105,6 +120,7 @@ export default function App() {
       const hitsPaddleX = x + RADIUS >= paddleX && x - RADIUS <= paddleX + PADDLE_W;
       const hitsPaddleY = y + RADIUS >= paddleY - PADDLE_H / 2 && y + RADIUS <= paddleY + PADDLE_H / 2 + 8;
       if (hitsPaddleX && hitsPaddleY && vy > 0) {
+        playBeep();
         score += 1;
         const speedMult = 1 + score * 0.04;
         const hitPos = (x - paddleX) / PADDLE_W;
@@ -162,6 +178,7 @@ export default function App() {
 
     return () => {
       cancelAnimationFrame(animId);
+      audioCtx.close();
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
