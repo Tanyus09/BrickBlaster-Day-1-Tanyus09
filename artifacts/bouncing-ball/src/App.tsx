@@ -21,7 +21,20 @@ export default function App() {
     let vx = 4;
     let vy = 3.5;
     let paddleX = 0;
+    let score = 0;
+    let gameOver = false;
     const keys: Record<string, boolean> = {};
+
+    function reset() {
+      if (!canvas) return;
+      x = canvas.width / 2;
+      y = canvas.height / 2;
+      vx = 4;
+      vy = 3.5;
+      paddleX = canvas.width / 2 - PADDLE_W / 2;
+      score = 0;
+      gameOver = false;
+    }
 
     function resize() {
       if (!canvas) return;
@@ -34,15 +47,48 @@ export default function App() {
     resize();
     window.addEventListener("resize", resize);
 
-    const onKey = (e: KeyboardEvent, down: boolean) => {
-      keys[e.key] = down;
+    function onKeyDown(e: KeyboardEvent) {
+      keys[e.key] = true;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") e.preventDefault();
-    };
-    window.addEventListener("keydown", (e) => onKey(e, true));
-    window.addEventListener("keyup", (e) => onKey(e, false));
+      if (e.key === " " || e.key === "Enter") {
+        if (gameOver) reset();
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) { keys[e.key] = false; }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    function drawGameOver() {
+      if (!canvas || !ctx) return;
+      ctx.fillStyle = "rgba(0,0,0,0.65)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.textAlign = "center";
+
+      ctx.font = "bold 64px system-ui, sans-serif";
+      ctx.fillStyle = "#ff3333";
+      ctx.shadowColor = "rgba(220,50,50,0.7)";
+      ctx.shadowBlur = 30;
+      ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+      ctx.shadowBlur = 0;
+      ctx.font = "28px system-ui, sans-serif";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+
+      ctx.font = "20px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText("Press Space or Enter to play again", canvas.width / 2, canvas.height / 2 + 70);
+    }
 
     function draw() {
       if (!canvas || !ctx) return;
+
+      if (gameOver) {
+        drawGameOver();
+        animId = requestAnimationFrame(draw);
+        return;
+      }
 
       const paddleY = canvas.height - PADDLE_Y_OFFSET;
 
@@ -63,13 +109,13 @@ export default function App() {
         y = paddleY - PADDLE_H / 2 - RADIUS;
         const hitPos = (x - paddleX) / PADDLE_W;
         vx = (hitPos - 0.5) * 8;
+        score += 1;
       }
 
       if (y - RADIUS > canvas.height) {
-        y = canvas.height / 2;
-        x = canvas.width / 2;
-        vx = 4;
-        vy = 3.5;
+        gameOver = true;
+        animId = requestAnimationFrame(draw);
+        return;
       }
 
       ctx.fillStyle = "#0f0f19";
@@ -103,6 +149,11 @@ export default function App() {
       ctx.fill();
       ctx.shadowBlur = 0;
 
+      ctx.textAlign = "center";
+      ctx.font = "bold 28px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillText(`${score}`, canvas.width / 2, 48);
+
       animId = requestAnimationFrame(draw);
     }
 
@@ -111,8 +162,8 @@ export default function App() {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
-      window.removeEventListener("keydown", (e) => onKey(e, true));
-      window.removeEventListener("keyup", (e) => onKey(e, false));
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
 
