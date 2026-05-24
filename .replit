@@ -24,12 +24,13 @@ args = "Bouncing Ball"
 name = "Bouncing Ball"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python bouncing_ball.py"
-
-[workflows.workflow.metadata]
-outputType = "vnc"
+waitForPort = 3000
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -44,9 +45,17 @@ channel = "stable-25_05"
 packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "fontconfig", "freetype", "libjpeg", "libpng", "pkg-config", "portmidi"]
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 8080
 externalPort = 8080
 
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[[ports]]
+localPort = 22951
+externalPort = 3002

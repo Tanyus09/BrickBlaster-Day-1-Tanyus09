@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Bouncing Ball"
+version = "1.0.0"
+id = "artifacts/bouncing-ball"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22951
+
+[services.development]
+run = "pnpm --filter @workspace/bouncing-ball run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bouncing-ball", "run", "build" ]
+publicDir = "artifacts/bouncing-ball/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22951"
+BASE_PATH = "/"

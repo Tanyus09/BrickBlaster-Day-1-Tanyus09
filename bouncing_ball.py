@@ -1,56 +1,85 @@
-import pygame
-import sys
+import http.server
+import os
 
-WIDTH, HEIGHT = 800, 600
-BALL_RADIUS = 30
-BALL_COLOR = (220, 50, 50)
-BG_COLOR = (15, 15, 25)
-FPS = 60
+PORT = int(os.environ.get("PORT", 3000))
 
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Bouncing Ball")
-    clock = pygame.time.Clock()
+HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bouncing Ball</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f19; display: flex; align-items: center; justify-content: center; height: 100vh; }
+    canvas { display: block; border-radius: 8px; box-shadow: 0 0 40px rgba(220,50,50,0.3); }
+  </style>
+</head>
+<body>
+  <canvas id="c" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d");
 
-    x = WIDTH // 2
-    y = HEIGHT // 2
-    vx = 5
-    vy = 4
+    const RADIUS = 30;
+    let x = canvas.width / 2;
+    let y = canvas.height / 2;
+    let vx = 4;
+    let vy = 3.5;
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+    function draw() {
+      ctx.fillStyle = "#0f0f19";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        x += vx
-        y += vy
+      // Shadow glow
+      ctx.shadowColor = "rgba(220, 50, 50, 0.6)";
+      ctx.shadowBlur = 20;
 
-        if x - BALL_RADIUS <= 0:
-            x = BALL_RADIUS
-            vx = abs(vx)
-        elif x + BALL_RADIUS >= WIDTH:
-            x = WIDTH - BALL_RADIUS
-            vx = -abs(vx)
+      // Ball body
+      const grad = ctx.createRadialGradient(x - 8, y - 8, 2, x, y, RADIUS);
+      grad.addColorStop(0, "#ff6666");
+      grad.addColorStop(0.4, "#dc3232");
+      grad.addColorStop(1, "#7a0000");
+      ctx.beginPath();
+      ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
 
-        if y - BALL_RADIUS <= 0:
-            y = BALL_RADIUS
-            vy = abs(vy)
-        elif y + BALL_RADIUS >= HEIGHT:
-            y = HEIGHT - BALL_RADIUS
-            vy = -abs(vy)
+      // Highlight
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(x - 10, y - 10, RADIUS / 4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fill();
 
-        screen.fill(BG_COLOR)
+      // Move
+      x += vx;
+      y += vy;
 
-        pygame.draw.circle(screen, (180, 30, 30), (x, y), BALL_RADIUS)
-        pygame.draw.circle(screen, BALL_COLOR, (x - 6, y - 6), BALL_RADIUS // 4)
+      if (x - RADIUS <= 0) { x = RADIUS; vx = Math.abs(vx); }
+      else if (x + RADIUS >= canvas.width) { x = canvas.width - RADIUS; vx = -Math.abs(vx); }
 
-        pygame.display.flip()
-        clock.tick(FPS)
+      if (y - RADIUS <= 0) { y = RADIUS; vy = Math.abs(vy); }
+      else if (y + RADIUS >= canvas.height) { y = canvas.height - RADIUS; vy = -Math.abs(vy); }
 
-if __name__ == "__main__":
-    main()
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
+</body>
+</html>
+"""
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(HTML.encode())
+
+    def log_message(self, format, *args):
+        pass
+
+print(f"Bouncing Ball running on port {PORT}")
+with http.server.HTTPServer(("0.0.0.0", PORT), Handler) as server:
+    server.serve_forever()
