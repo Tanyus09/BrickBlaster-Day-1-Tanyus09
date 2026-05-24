@@ -37,6 +37,7 @@ export default function App() {
     let vy = 3.5;
     let paddleX = 0;
     let score = 0;
+    let highScore = parseInt(localStorage.getItem("bb_highscore") ?? "0", 10);
     let gameOver = false;
     const keys: Record<string, boolean> = {};
 
@@ -130,6 +131,10 @@ export default function App() {
       }
 
       if (y - RADIUS > canvas.height) {
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem("bb_highscore", String(highScore));
+        }
         gameOver = true;
         animId = requestAnimationFrame(draw);
         return;
@@ -170,6 +175,12 @@ export default function App() {
       ctx.font = "bold 28px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.fillText(`${score}`, canvas.width / 2, 48);
+
+      if (highScore > 0) {
+        ctx.font = "15px system-ui, sans-serif";
+        ctx.fillStyle = "rgba(255,215,0,0.7)";
+        ctx.fillText(`Best: ${highScore}`, canvas.width / 2, 72);
+      }
 
       animId = requestAnimationFrame(draw);
     }
