@@ -105,11 +105,12 @@ export default function App() {
       const hitsPaddleX = x + RADIUS >= paddleX && x - RADIUS <= paddleX + PADDLE_W;
       const hitsPaddleY = y + RADIUS >= paddleY - PADDLE_H / 2 && y + RADIUS <= paddleY + PADDLE_H / 2 + 8;
       if (hitsPaddleX && hitsPaddleY && vy > 0) {
-        vy = -Math.abs(vy);
-        y = paddleY - PADDLE_H / 2 - RADIUS;
-        const hitPos = (x - paddleX) / PADDLE_W;
-        vx = (hitPos - 0.5) * 8;
         score += 1;
+        const speedMult = 1 + score * 0.04;
+        const hitPos = (x - paddleX) / PADDLE_W;
+        vx = (hitPos - 0.5) * 8 * speedMult;
+        vy = -Math.abs(vy) * speedMult;
+        y = paddleY - PADDLE_H / 2 - RADIUS;
       }
 
       if (y - RADIUS > canvas.height) {
