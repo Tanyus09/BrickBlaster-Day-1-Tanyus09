@@ -176,6 +176,26 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
+    // Touch controls
+    function onTouchMove(e: TouchEvent) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const tx = touch.clientX - rect.left;
+      paddleX = Math.max(0, Math.min(canvas.width - paddleW, tx - paddleW / 2));
+    }
+    function onTouchStart(e: TouchEvent) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const tx = touch.clientX - rect.left;
+      paddleX = Math.max(0, Math.min(canvas.width - paddleW, tx - paddleW / 2));
+      if (!started && !gameOver && !won && !waitingForRestart) started = true;
+      else if (won) reset(level + 1);
+    }
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+
     function spawnParticles(x: number, y: number, color: string, n = 10) {
       for (let i = 0; i < n; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -499,6 +519,8 @@ export default function App() {
       audioCtx.close();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchstart", onTouchStart);
     };
   }, []);
 
