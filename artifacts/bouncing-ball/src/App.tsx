@@ -58,6 +58,7 @@ export default function App() {
     let combo = 0;
     let comboTimer = 0;
     let comboFlash = 0;
+    let timeLeft = 0;
 
     function makeBricks() {
       bricks = [];
@@ -100,6 +101,7 @@ export default function App() {
       combo = 0;
       comboTimer = 0;
       comboFlash = 0;
+      timeLeft = 90 * 60;
       makeBricks();
     }
 
@@ -151,6 +153,18 @@ export default function App() {
       ctx.font = "bold 20px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.fillText(`Level ${level}`, canvas.width / 2, 30);
+
+      // Timer
+      const secs = Math.ceil(timeLeft / 60);
+      const isLow = secs <= 15;
+      ctx.font = `bold ${isLow ? "26px" : "20px"} system-ui, sans-serif`;
+      ctx.fillStyle = isLow ? (secs <= 8 ? "#ff3333" : "#ffaa00") : "rgba(255,255,255,0.75)";
+      if (isLow && secs <= 8) {
+        ctx.shadowColor = "#ff3333";
+        ctx.shadowBlur = 14;
+      }
+      ctx.fillText(`⏱ ${secs}s`, canvas.width / 2, 56);
+      ctx.shadowBlur = 0;
 
       // Lives as hearts
       ctx.textAlign = "right";
@@ -242,6 +256,10 @@ export default function App() {
       if (comboTimer > 0) comboTimer--;
       else if (combo > 0) combo = 0;
       if (comboFlash > 0) comboFlash--;
+
+      // Timer countdown (only while ball is in play)
+      if (started && timeLeft > 0) timeLeft--;
+      if (timeLeft === 0 && started) { gameOver = true; }
 
       if (!started) {
         // Draw everything static then show hint
