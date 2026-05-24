@@ -55,6 +55,9 @@ export default function App() {
     let powerUps: PowerUp[] = [];
     let widePaddleTimer = 0;
     let slowTimer = 0;
+    let combo = 0;
+    let comboTimer = 0;
+    let comboFlash = 0;
 
     function makeBricks() {
       bricks = [];
@@ -94,6 +97,9 @@ export default function App() {
       powerUps = [];
       widePaddleTimer = 0;
       slowTimer = 0;
+      combo = 0;
+      comboTimer = 0;
+      comboFlash = 0;
       makeBricks();
     }
 
@@ -154,6 +160,28 @@ export default function App() {
       ctx.fillStyle = "#ff4466";
       ctx.fillText(hearts.trim(), canvas.width - 20, 30);
 
+      // Combo display
+      if (combo >= 2 && comboFlash > 0) {
+        const alpha = comboFlash / 40;
+        const scale = 1 + (1 - alpha) * 0.3;
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2 - 60);
+        ctx.scale(scale, scale);
+        ctx.textAlign = "center";
+        ctx.font = `bold ${Math.min(48 + combo * 4, 72)}px system-ui, sans-serif`;
+        ctx.fillStyle = `rgba(255, 220, 50, ${alpha})`;
+        ctx.shadowColor = `rgba(255,180,0,${alpha})`;
+        ctx.shadowBlur = 20;
+        ctx.fillText(`✦ ${combo}x COMBO! ✦`, 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else if (combo >= 2) {
+        ctx.textAlign = "center";
+        ctx.font = "bold 18px system-ui, sans-serif";
+        ctx.fillStyle = "rgba(255,220,50,0.6)";
+        ctx.fillText(`${combo}x combo`, canvas.width / 2, canvas.height / 2 - 40);
+      }
+
       // Power-up timers
       let barY = canvas.height - 60;
       if (widePaddleTimer > 0) {
@@ -210,6 +238,11 @@ export default function App() {
       else paddleW = 100 + (level - 1) * -5;
       if (slowTimer > 0) slowTimer--;
 
+      // Combo countdown — expires after ~1.2 seconds without a brick break
+      if (comboTimer > 0) comboTimer--;
+      else if (combo > 0) combo = 0;
+      if (comboFlash > 0) comboFlash--;
+
       if (!started) {
         // Draw everything static then show hint
         drawBricks(); drawParticles(); drawPaddle(paddleX, paddleW, paddleY); drawBall(bx, by); drawHUD();
@@ -244,6 +277,7 @@ export default function App() {
         bvx = (hitPos - 0.5) * 10;
         bvy = -Math.abs(bvy);
         by = paddleY - PADDLE_H / 2 - RADIUS;
+        combo = 0; comboTimer = 0;
         score += 1;
         if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
       }
@@ -272,10 +306,14 @@ export default function App() {
           b.hits++;
           if (b.hits >= b.maxHits) {
             b.alive = false;
-            score += b.maxHits === 2 ? 30 : 10;
+            combo++;
+            comboTimer = 72;
+            comboFlash = 40;
+            const basePoints = b.maxHits === 2 ? 30 : 10;
+            score += basePoints * combo;
             if (score > highScore) { highScore = score; localStorage.setItem("bb_highscore", String(highScore)); }
             spawnParticles(b.x + b.w / 2, b.y + BRICK_H / 2, b.color, 12);
-            beep(600 + Math.random() * 200, 0.1, 0.15);
+            beep(600 + combo * 40, 0.1, 0.15);
             // 20% chance to drop power-up
             if (Math.random() < 0.2) {
               const types: PowerUp["type"][] = ["wide", "slow", "life"];
