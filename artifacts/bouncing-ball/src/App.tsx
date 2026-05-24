@@ -104,13 +104,19 @@ export default function App() {
       if (!animId) draw();
     };
 
+    function levelRows() { return Math.min(6, BRICK_ROWS + Math.floor((level - 1) / 2)); }
+    function levelCols() { return Math.min(9, BRICK_COLS + Math.floor((level - 1) / 3)); }
+
     function makeBricks() {
       bricks = [];
+      const rows = levelRows();
+      const cols = levelCols();
       const totalW = canvas.width - 40;
-      const bw = (totalW - (BRICK_COLS - 1) * BRICK_GAP) / BRICK_COLS;
-      for (let r = 0; r < BRICK_ROWS; r++) {
-        for (let c = 0; c < BRICK_COLS; c++) {
-          const maxHits = r === 0 ? 2 : 1;
+      const bw = (totalW - (cols - 1) * BRICK_GAP) / cols;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          // Top rows get more hits on higher levels
+          const maxHits = r < Math.ceil(level / 2) ? 2 : 1;
           bricks.push({
             x: 20 + c * (bw + BRICK_GAP),
             y: BRICK_TOP + r * (BRICK_H + BRICK_GAP),
@@ -128,11 +134,11 @@ export default function App() {
       level = newLevel;
       score = newLevel === 1 ? 0 : score;
       lives = newLevel === 1 ? MAX_LIVES : lives;
-      paddleW = 110;
+      paddleW = Math.max(60, 110 - (level - 1) * 8);
       paddleX = canvas.width / 2 - paddleW / 2;
       bx = canvas.width / 2;
       by = canvas.height * 0.6;
-      const spd = 5.0 + (level - 1) * 0.5;
+      const spd = 5.0 + (level - 1) * 0.6;
       bvx = spd * (Math.random() > 0.5 ? 1 : -1);
       bvy = -spd;
       gameOver = false;
@@ -145,7 +151,7 @@ export default function App() {
       combo = 0;
       comboTimer = 0;
       comboFlash = 0;
-      timeLeft = 90 * 60;
+      timeLeft = Math.max(40, 90 - (level - 1) * 8) * 60;
       waitingForRestart = false;
       makeBricks();
     }
@@ -342,7 +348,7 @@ export default function App() {
         if (lives <= 0) { triggerGameOver(); }
         else {
           bx = canvas.width / 2; by = canvas.height * 0.6;
-          const spd = 5.0 + (level - 1) * 0.5;
+          const spd = 5.0 + (level - 1) * 0.6;
           bvx = spd * (Math.random() > 0.5 ? 1 : -1); bvy = -spd;
           started = false;
         }
