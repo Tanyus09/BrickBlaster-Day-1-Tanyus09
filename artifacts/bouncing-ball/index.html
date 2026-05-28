@@ -1,24 +1,502 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Bouncing Ball</title>
-    <meta name="description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Bouncing Ball" />
-    <meta property="og:description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Bouncing Ball" />
-    <meta name="twitter:description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Brick Blaster - Day 1 - Tanyus09</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+       .header {
+            color: #00ffff;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-shadow: 0 0 15px #00ffff;
+        }
+        canvas {
+            border: 3px solid #00ffff;
+            border-radius: 12px;
+            box-shadow: 0 0 30px #00ffff;
+            background: rgba(0,0,0,0.7);
+            max-width: 95vw;
+            max-height: 60vh;
+        }
+       .stats {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+            font-size: 18px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+       .score { color: #00ff00; text-shadow: 0 0 10px #00ff00; }
+       .lives { color: #ff0080; text-shadow: 0 0 10px #ff0080; }
+       .level { color: #ffff00; text-shadow: 0 0 10px #ffff00; }
+       .timer { color: #ff8c00; text-shadow: 0 0 10px #ff8c00; }
+       .controls {
+            color: #888;
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: center;
+        }
+       .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+       .overlay h2 {
+            color: #00ffff;
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #00ffff;
+        }
+       .overlay button {
+            background: linear-gradient(45deg, #00ffff, #ff0080);
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 25px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0,255,255,0.5);
+        }
+        #mobileControls {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            width: 100%;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+       .touch-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(0,255,255,0.3);
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            color: #00ffff;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">BRICK BLASTER</div>
+    <div class="stats">
+        <div class="level">LEVEL: <span id="level">1</span>/6</div>
+        <div class="score">SCORE: <span id="score">0</span></div>
+        <div class="lives">LIVES: <span id="lives">3</span></div>
+        <div class="timer">TIME: <span id="timer">90</span>s</div>
+    </div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <div class="controls">PC: Mouse/Arrows | Mobile: Touch Buttons</div>
+
+    <div id="mobileControls">
+        <div class="touch-btn" id="leftBtn">←</div>
+        <div class="touch-btn" id="rightBtn">→</div>
+    </div>
+
+    <div class="overlay" id="levelComplete">
+        <h2 id="completeText">Level 1 Complete! 🎉</h2>
+        <button onclick="nextLevel()">Continue Level 2</button>
+        <button onclick="restartGame()">Restart Game</button>
+    </div>
+
+    <div class="overlay" id="gameOver">
+        <h2>Game Over! 💔</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button onclick="restartGame()">Try Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        // Game State
+        let level = 1;
+        let score = 0;
+        let lives = 3;
+        let timeLeft = 90;
+        let gameRunning = true;
+        let animationId;
+
+        // Ball
+        let ballRadius = 10;
+        let x, y, dx, dy;
+
+        // Paddle
+        let paddleHeight = 15;
+        let paddleWidth = 120;
+        let paddleX;
+        let originalPaddleWidth = 120;
+
+        // Bricks
+        let brickRowCount, brickColumnCount;
+        let brickWidth = 70;
+        let brickHeight = 20;
+        let brickPadding = 8;
+        let brickOffsetTop = 80;
+        let brickOffsetLeft = 20;
+        let bricks = [];
+
+        // Powerups
+        let powerups = [];
+        let activePowerup = null;
+        let powerupTimer = 0;
+
+        // Sounds - using Web Audio API
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(frequency, duration, type = 'sine') {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        function initLevel() {
+            // Level config
+            const configs = {
+                1: { rows: 3, cols: 10, time: 90, speed: 4 },
+                2: { rows: 4, cols: 10, time: 80, speed: 5 },
+                3: { rows: 5, cols: 10, time: 70, speed: 6 },
+                4: { rows: 6, cols: 10, time: 60, speed: 7 },
+                5: { rows: 7, cols: 10, time: 50, speed: 8 },
+                6: { rows: 8, cols: 10, time: 40, speed: 9 }
+            };
+
+            const config = configs[level];
+            brickRowCount = config.rows;
+            brickColumnCount = config.cols;
+            timeLeft = config.time;
+
+            // Reset ball
+            x = canvas.width / 2;
+            y = canvas.height - 30;
+            dx = config.speed;
+            dy = -config.speed;
+
+            // Reset paddle
+            paddleWidth = originalPaddleWidth;
+            paddleX = (canvas.width - paddleWidth) / 2;
+
+            // Reset powerups
+            powerups = [];
+            activePowerup = null;
+
+            // Create bricks
+            bricks = [];
+            for(let c = 0; c < brickColumnCount; c++) {
+                bricks[c] = [];
+                for(let r = 0; r < brickRowCount; r++) {
+                    bricks[c][r] = {
+                        x: 0,
+                        y: 0,
+                        status: 1,
+                        hasPowerup: Math.random() < 0.1 // 10% chance
+                    };
+                }
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('level').textContent = level;
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('timer').textContent = timeLeft;
+        }
+
+        // Controls
+        let rightPressed = false;
+        let leftPressed = false;
+
+        document.addEventListener("keydown", (e) => {
+            if(e.key == "Right" || e.key == "ArrowRight") rightPressed = true;
+            else if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = true;
+        });
+        document.addEventListener("keyup", (e) => {
+            if(e.key == "Right" || e.key == "ArrowRight") rightPressed = false;
+            else if(e.key == "Left" || e.key == "ArrowLeft") leftPressed = false;
+        });
+        document.addEventListener("mousemove", (e) => {
+            let relativeX = e.clientX - canvas.offsetLeft;
+            if(relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+                clampPaddle();
+            }
+        });
+
+        // Mobile controls
+        if('ontouchstart' in window) {
+            document.getElementById('mobileControls').style.display = 'flex';
+            document.getElementById('leftBtn').ontouchstart = () => leftPressed = true;
+            document.getElementById('leftBtn').ontouchend = () => leftPressed = false;
+            document.getElementById('rightBtn').ontouchstart = () => rightPressed = true;
+            document.getElementById('rightBtn').ontouchend = () => rightPressed = false;
+        }
+
+        function clampPaddle() {
+            if(paddleX < 0) paddleX = 0;
+            if(paddleX + paddleWidth > canvas.width) paddleX = canvas.width - paddleWidth;
+        }
+
+        function collisionDetection() {
+            for(let c = 0; c < brickColumnCount; c++) {
+                for(let r = 0; r < brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if(b.status == 1) {
+                        if(x > b.x && x < b.x + brickWidth && y > b.y && y < b.y + brickHeight) {
+                            dy = -dy;
+                            b.status = 0;
+                            score += 10;
+                            playSound(800, 0.1); // Brick hit sound
+
+                            // Spawn powerup
+                            if(b.hasPowerup) {
+                                powerups.push({
+                                    x: b.x + brickWidth/2,
+                                    y: b.y,
+                                    type: Math.random() < 0.5? 'longPaddle' : 'bigBall'
+                                });
+                            }
+
+                            if(isLevelComplete()) {
+                                levelComplete();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function isLevelComplete() {
+            for(let c = 0; c < brickColumnCount; c++) {
+                for(let r = 0; r < brickRowCount; r++) {
+                    if(bricks[c][r].status == 1) return false;
+                }
+            }
+            return true;
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "#00ffff";
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = "#00ffff";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
+            let gradient = ctx.createLinearGradient(paddleX, 0, paddleX + paddleWidth, 0);
+            gradient.addColorStop(0, "#ff0080");
+            gradient.addColorStop(1, "#ff8c00");
+            ctx.fillStyle = gradient;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "#ff0080";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBricks() {
+            for(let c = 0; c < brickColumnCount; c++) {
+                for(let r = 0; r < brickRowCount; r++) {
+                    if(bricks[c][r].status == 1) {
+                        let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                        let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                        bricks[c][r].x = brickX;
+                        bricks[c][r].y = brickY;
+                        ctx.beginPath();
+                        ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                        let hue = (r * 60 + c * 10) % 360;
+                        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+                        ctx.fill();
+                        ctx.closePath();
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+
+        function drawPowerups() {
+            powerups.forEach((p, index) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = p.type === 'longPaddle'? '#00ff00' : '#ffff00';
+                ctx.fill();
+                p.y += 2;
+
+                // Collision with paddle
+                if(p.y > canvas.height - paddleHeight - 10 &&
+                   p.x > paddleX && p.x < paddleX + paddleWidth) {
+                    activatePowerup(p.type);
+                    powerups.splice(index, 1);
+                    playSound(1000, 0.2);
+                }
+
+                // Remove if off screen
+                if(p.y > canvas.height) powerups.splice(index, 1);
+            });
+        }
+
+        function activatePowerup(type) {
+            activePowerup = type;
+            powerupTimer = 300; // 5 seconds at 60fps
+            if(type === 'longPaddle') paddleWidth = 180;
+            if(type === 'bigBall') ballRadius = 20;
+        }
+
+        function updatePowerup() {
+            if(activePowerup) {
+                powerupTimer--;
+                if(powerupTimer <= 0) {
+                    paddleWidth = originalPaddleWidth;
+                    ballRadius = 10;
+                    activePowerup = null;
+                }
+            }
+        }
+
+        function draw() {
+            if(!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawBall();
+            drawPaddle();
+            drawPowerups();
+            collisionDetection();
+            updatePowerup();
+
+            // Wall collision
+            if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+                playSound(400, 0.05);
+            }
+            if(y + dy < ballRadius) {
+                dy = -dy;
+                playSound(400, 0.05);
+            }
+            else if(y + dy > canvas.height - ballRadius - paddleHeight - 10) {
+                if(x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                    playSound(600, 0.1); // Paddle hit
+                    let hitPos = (x - paddleX) / paddleWidth;
+                    dx = 8 * (hitPos - 0.5);
+                } else if(y + dy > canvas.height - ballRadius) {
+                    lives--;
+                    playSound(200, 0.3, 'sawtooth'); // Game over sound
+                    updateUI();
+                    if(!lives) {
+                        gameOver();
+                    } else {
+                        x = canvas.width / 2;
+                        y = canvas.height - 30;
+                        dx = 4 + level;
+                        dy = -(4 + level);
+                        paddleX = (canvas.width - paddleWidth) / 2;
+                    }
+                }
+            }
+
+            if(rightPressed) paddleX += 8;
+            if(leftPressed) paddleX -= 8;
+            clampPaddle();
+
+            x += dx;
+            y += dy;
+            animationId = requestAnimationFrame(draw);
+        }
+
+        // Timer
+        setInterval(() => {
+            if(gameRunning && timeLeft > 0) {
+                timeLeft--;
+                updateUI();
+                if(timeLeft === 0) gameOver();
+            }
+        }, 1000);
+
+        function levelComplete() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            playSound(1000, 0.5);
+            document.getElementById('completeText').textContent = `Level ${level} Complete! 🎉`;
+            document.getElementById('levelComplete').style.display = 'flex';
+        }
+
+        function nextLevel() {
+            if(level < 6) {
+                level++;
+                document.getElementById('levelComplete').style.display = 'none';
+                gameRunning = true;
+                initLevel();
+                draw();
+            } else {
+                alert('🏆 CONGRATULATIONS! YOU BEAT ALL 6 LEVELS! 🏆\nDay 1 Complete - CEO Tanyus 🚗👑');
+                restartGame();
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'flex';
+        }
+
+        function restartGame() {
+            level = 1;
+            score = 0;
+            lives = 3;
+            document.getElementById('levelComplete').style.display = 'none';
+            document.getElementById('gameOver').style.display = 'none';
+            gameRunning = true;
+            initLevel();
+            draw();
+        }
+
+        // Start game
+        initLevel();
+        draw();
+    </script>
+</body>
 </html>
