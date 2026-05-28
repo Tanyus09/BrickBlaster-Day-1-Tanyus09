@@ -1,24 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Bouncing Ball</title>
-    <meta name="description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Bouncing Ball" />
-    <meta property="og:description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Bouncing Ball" />
-    <meta name="twitter:description" content="Bouncing Ball — built on Replit. Update this description to reflect the app." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Brick Blaster - Day 1 - Tanyus09</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #0a0a0a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas { 
+            border: 3px solid #00ffff; 
+            box-shadow: 0 0 30px #00ffff, inset 0 0 20px rgba(0,255,255,0.2);
+            border-radius: 8px;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            color: #00ffff;
+            font-family: Arial;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">Day 1/1460 - Tanyus09 🚗👑</div>
+    <canvas id="game" width="800" height="600"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        
+        let x = canvas.width / 2;
+        let y = canvas.height - 30;
+        let dx = 4;
+        let dy = -4;
+        let ballRadius = 12;
+        
+        // Paddle ke liye
+        let paddleHeight = 15;
+        let paddleWidth = 120;
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "#00ffff";
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "#00ffff";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+        
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
+            ctx.fillStyle = "#ff0080";
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#ff0080";
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBall();
+            drawPaddle();
+            
+            // Ball ka collision
+            if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) dx = -dx;
+            if(y + dy < ballRadius) dy = -dy;
+            else if(y + dy > canvas.height - ballRadius - paddleHeight - 10) {
+                if(x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                } else if(y + dy > canvas.height - ballRadius) {
+                    // Game over ho gaya to reset
+                    x = canvas.width / 2;
+                    y = canvas.height - 30;
+                    dx = 4;
+                    dy = -4;
+                }
+            }
+            
+            x += dx;
+            y += dy;
+        }
+        
+        // Mouse se paddle hilao
+        document.addEventListener("mousemove", (e) => {
+            let relativeX = e.clientX - canvas.offsetLeft;
+            if(relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+            }
+        });
+        
+        setInterval(draw, 10);
+    </script>
+</body>
 </html>
